@@ -29,8 +29,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
 
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += \
-    $(LOCAL_PATH)/overlay \
-    $(LOCAL_PATH)/overlay-mokee
+
 
 # Boot animation
 TARGET_SCREEN_HEIGHT := 2160

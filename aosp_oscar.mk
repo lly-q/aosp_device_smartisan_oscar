@@ -21,13 +21,13 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
 # Inherit from oscar device
 $(call inherit-product, device/smartisan/oscar/device.mk)
 
-# Inherit some common MK stuff.
-$(call inherit-product, vendor/mk/config/common_full_phone.mk)
+# Inherit some common aosp stuff.
+$(call inherit-product, vendor/aosp/config/common_full_phone.mk)
 
 PRODUCT_PROPERTY_OVERRIDES += \
-    ro.mk.maintainer=XiNGRZ
+    ro.mk.maintainer=lly
 
-PRODUCT_NAME := mk_oscar
+PRODUCT_NAME := aosp_oscar
 PRODUCT_BRAND := SMARTISAN
 PRODUCT_DEVICE := oscar
 PRODUCT_MANUFACTURER := smartisan

@@ -1,4 +1,4 @@
-Copyright (C) 2018 - The MoKee Open Source Project
+Copyright (C) 2018 - The Android Open Source Project
 
 Device configuration for Smartisan U3
 ==============
@@ -26,3 +26,4 @@ Smartisan U3 was announced and released in April 2018.
 ## Device picture
 
 ![Smartisan U3](https://resource.smartisan.com/resource/fac4130efc39ed4db697cc8d137890e9.png "Smartisan U3 in red")
+## (EDIT refer XINGRZ)
