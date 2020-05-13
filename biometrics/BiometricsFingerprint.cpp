@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define LOG_TAG "android.hardware.biometrics.fingerprint@2.1-service.oscar"
-#define LOG_VERBOSE "android.hardware.biometrics.fingerprint@2.1-service.oscar"
+#define LOG_TAG "android.hardware.biometrics.fingerprint@2.0-service.oscar"
+#define LOG_VERBOSE "android.hardware.biometrics.fingerprint@2.0-service.oscar"
 
 #include <hardware/hw_auth_token.h>
 
@@ -219,8 +219,8 @@ Return<RequestStatus> BiometricsFingerprint::setActiveGroup(uint32_t gid,
         return RequestStatus::SYS_EINVAL;
     }
 
-    mDevice->set_active_group(mDevice, gid, storePath.c_str());
-    return ErrorFilter(0);
+    return ErrorFilter(mDevice->set_active_group(mDevice, gid,
+                                                    storePath.c_str()));
 }
 
 Return<RequestStatus> BiometricsFingerprint::authenticate(uint64_t operationId,
@@ -233,86 +233,6 @@ IBiometricsFingerprint* BiometricsFingerprint::getInstance() {
       sInstance = new BiometricsFingerprint();
     }
     return sInstance;
-}
-
-bool BiometricsFingerprint::openGoodixHal(hw_device_t **device) {
-    int err;
-    const hw_module_t *hw_mdl = nullptr;
-    ALOGD("Opening goodix fingerprint hal library...");
-    if (0 != (err = hw_get_module("fingerprint", &hw_mdl))) {
-        ALOGE("Can't open goodix fingerprint HW Module, error: %d", err);
-        return false;
-    }
-
-    if (hw_mdl == nullptr) {
-        ALOGE("No valid fingerprint module");
-        return false;
-    }
-
-    fingerprint_module_t const *module =
-        reinterpret_cast<const fingerprint_module_t*>(hw_mdl);
-    if (module->common.methods->open == nullptr) {
-        ALOGE("No valid open method");
-        return false;
-    }
-
-    if (0 != (err = module->common.methods->open(hw_mdl, nullptr, device))) {
-        ALOGE("Can't open goodix fingerprint methods, error: %d", err);
-        return false;
-    }
-
-    return true;
-}
-
-bool BiometricsFingerprint::openBetterlifeHal(hw_device_t **device) {
-    int err;
-    const hw_module_t *hw_mdl = nullptr;
-    ALOGD("Opening betterlife fingerprint hal library...");
-    if (0 != (err = hw_get_module("blestech.fingerprint", &hw_mdl))) {
-        ALOGE("Can't open betterlife fingerprint HW Module, error: %d", err);
-        return false;
-    }
-
-    if (hw_mdl == nullptr) {
-        ALOGE("No valid fingerprint module");
-        return false;
-    }
-
-    fingerprint_module_t const *module =
-        reinterpret_cast<const fingerprint_module_t*>(hw_mdl);
-    if (module->common.methods->open == nullptr) {
-        ALOGE("No valid open method");
-        return false;
-    }
-
-    if (0 != (err = module->common.methods->open(hw_mdl, nullptr, device))) {
-        ALOGE("Can't open betterlife fingerprint methods, error: %d", err);
-        return false;
-    }
-
-    return true;
-}
-
-fingerprint_device_t* BiometricsFingerprint::openHal() {
-    int err;
-    hw_device_t *device = nullptr;
-
-    if (!BiometricsFingerprint::openGoodixHal(&device) &&
-        !BiometricsFingerprint::openBetterlifeHal(&device)) {
-        ALOGE("No working fingerprint hal");
-        return nullptr;
-    }
-
-    fingerprint_device_t* fp_device =
-        reinterpret_cast<fingerprint_device_t*>(device);
-
-    if (0 != (err =
-            fp_device->set_notify(fp_device, BiometricsFingerprint::notify))) {
-        ALOGE("Can't register fingerprint module callback, error: %d", err);
-        return nullptr;
-    }
-
-    return fp_device;
 }
 
 void BiometricsFingerprint::notify(const fingerprint_msg_t *msg) {

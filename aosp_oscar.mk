@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2018 The MoKee Open Source Project
+# Copyright (C) 2018-2019 The MoKee Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,17 +17,18 @@
 # Inherit from those products. Most specific first.
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/product_launched_with_n_mr1.mk)
 
 # Inherit from oscar device
 $(call inherit-product, device/smartisan/oscar/device.mk)
 
-# Inherit some common aosp stuff.
+# Inherit some common MK stuff.
 $(call inherit-product, vendor/aosp/config/common_full_phone.mk)
 
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.mk.maintainer=lly
 
-PRODUCT_NAME := aosp_oscar
+PRODUCT_NAME := oscar
 PRODUCT_BRAND := SMARTISAN
 PRODUCT_DEVICE := oscar
 PRODUCT_MANUFACTURER := smartisan

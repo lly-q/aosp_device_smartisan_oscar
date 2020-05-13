@@ -53,8 +53,6 @@ class FingerprintDaemonProxy : public BnFingerprintDaemon {
         void binderDied(const wp<IBinder>& who);
         void notifyKeystore(const uint8_t *auth_token, const size_t auth_token_length);
         static void hal_notify_callback(const fingerprint_msg_t *msg);
-        bool openGoodixHal(hw_device_t **device);
-        bool openBetterlifeHal(hw_device_t **device);
 
         static FingerprintDaemonProxy* sInstance;
         fingerprint_module_t const* mModule;

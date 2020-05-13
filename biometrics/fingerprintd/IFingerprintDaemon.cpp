@@ -14,16 +14,14 @@
  * limitations under the License.
 */
 
-#define LOG_NDEBUG 0
 #include <inttypes.h>
-#define LOG_TAG "FingerprintDaemon"
 
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
 #include <utils/String16.h>
 #include <utils/Looper.h>
-#include <keystore/IKeystoreService.h>
+#include <android/security/IKeystoreService.h>
 #include <keystore/keystore.h> // for error code
 #include <hardware/hardware.h>
 #include <hardware/fingerprint.h>
@@ -192,7 +190,6 @@ bool BnFingerprintDaemon::checkPermission(const String16& permission) {
     const IPCThreadState* ipc = IPCThreadState::self();
     const int calling_pid = ipc->getCallingPid();
     const int calling_uid = ipc->getCallingUid();
-
     return PermissionCache::checkPermission(permission, calling_pid, calling_uid);
 }
 
@@ -319,12 +316,10 @@ class BpFingerprintDaemon : public BpInterface<IFingerprintDaemon> {
         }
 
         virtual void binderDied(const wp<IBinder> __unused &who) {
-            ALOGE("binderDied()");
             return;
         }
 
         virtual void hal_notify_callback(const fingerprint_msg_t __unused *msg) {
-            ALOGE("Daemon hal_notify_callback");
             return;
         }
 };

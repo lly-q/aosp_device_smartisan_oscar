@@ -23,13 +23,9 @@
 
 $(call inherit-product, vendor/smartisan/oscar/oscar-vendor.mk)
 
-# Vendor security patch level
-PRODUCT_PROPERTY_OVERRIDES += \
-    ro.vendor.build.security_patch=2018-09-01
-
 # Overlays
 DEVICE_PACKAGE_OVERLAYS += \
-
+    $(LOCAL_PATH)/overlay \
 
 # Boot animation
 TARGET_SCREEN_HEIGHT := 2160
@@ -48,7 +44,7 @@ PRODUCT_PACKAGES += \
 
 # Fingerprint
 PRODUCT_PACKAGES += \
-    android.hardware.biometrics.fingerprint@2.1-service.oscar
+    android.hardware.biometrics.fingerprint@2.0-service.oscar
 
 # Init
 PRODUCT_COPY_FILES += \

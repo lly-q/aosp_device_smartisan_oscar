@@ -40,13 +40,15 @@ TARGET_LD_SHIM_LIBS += /system/vendor/lib/hw/camera.msm8953.so|/system/vendor/li
 TARGET_LD_SHIM_LIBS += /system/vendor/lib/libmmcamera_ppeiscore.so|/system/vendor/lib/libshim_camera.so
 
 
-
 # Properties
 TARGET_SYSTEM_PROP += $(DEVICE_PATH)/system.prop
 
 # Releasetools
 TARGET_BOARD_INFO_FILE := $(DEVICE_PATH)/board-info.txt
 TARGET_RELEASETOOLS_EXTENSIONS := $(DEVICE_PATH)
+
+# Security patch level
+VENDOR_SECURITY_PATCH := 2018-09-01
 
 # inherit from the proprietary version
 -include vendor/smartisan/oscar/BoardConfigVendor.mk

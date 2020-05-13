@@ -47,10 +47,6 @@ class IFingerprintDaemon : public IInterface, public IBinder::DeathRecipient {
            ENUMERATE = IBinder::FIRST_CALL_TRANSACTION + 12,
         };
 
-//        IFingerprintDaemon() { }
-//        virtual ~IFingerprintDaemon() { }
-//        virtual const android::String16& getInterfaceDescriptor() const;
-
         // Binder interface methods
         virtual void init(const sp<IFingerprintDaemonCallback>& callback) = 0;
         virtual int32_t enroll(const uint8_t* token, ssize_t tokenLength, int32_t groupId,
@@ -86,4 +82,3 @@ class BnFingerprintDaemon: public BnInterface<IFingerprintDaemon> {
 } // namespace android
 
 #endif // IFINGERPRINT_DAEMON_H_
-

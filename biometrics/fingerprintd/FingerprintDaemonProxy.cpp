@@ -13,17 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define LOG_NDEBUG 0
-#define LOG_TAG "FingerprintDaemonProxy"
 
-#include <cutils/properties.h>
+#define LOG_TAG "fingerprintd"
+
+#include <android/security/IKeystoreService.h>
 #include <binder/IServiceManager.h>
 #include <hardware/hardware.h>
 #include <hardware/fingerprint.h>
 #include <hardware/hw_auth_token.h>
-#include <keystore/IKeystoreService.h>
 #include <keystore/keystore.h> // for error codes
+#include <keystore/keystore_return_types.h>
 #include <utils/Log.h>
+#include <utils/String16.h>
+
+#ifdef SMARTISAN_HACK
+#include <sys/stat.h>
+#include <cutils/properties.h>
+#endif
 
 #include "FingerprintDaemonProxy.h"
 
@@ -32,7 +38,12 @@ namespace android {
 FingerprintDaemonProxy* FingerprintDaemonProxy::sInstance = NULL;
 
 // Supported fingerprint HAL version
-static const uint16_t kVersion = HARDWARE_MODULE_API_VERSION(2, 0);
+static const uint16_t kVersion = HARDWARE_MODULE_API_VERSION(2, 1);
+
+#ifdef SMARTISAN_HACK
+#define FP_VENDORS 2
+static const char aFingerprint[FP_VENDORS][40] = {"fingerprint", "blestech.fingerprint"};
+#endif
 
 FingerprintDaemonProxy::FingerprintDaemonProxy() : mModule(NULL), mDevice(NULL), mCallback(NULL) {
 
@@ -52,12 +63,17 @@ void FingerprintDaemonProxy::hal_notify_callback(const fingerprint_msg_t *msg) {
     const int64_t device = (int64_t) instance->mDevice;
     switch (msg->type) {
         case FINGERPRINT_ERROR:
+            ALOGD("onError(%d)", msg->data.error);
             callback->onError(device, msg->data.error);
             break;
         case FINGERPRINT_ACQUIRED:
+            ALOGD("onAcquired(%d)", msg->data.acquired.acquired_info);
             callback->onAcquired(device, msg->data.acquired.acquired_info);
             break;
         case FINGERPRINT_AUTHENTICATED:
+            ALOGD("onAuthenticated(fid=%d, gid=%d)",
+                    msg->data.authenticated.finger.fid,
+                    msg->data.authenticated.finger.gid);
             if (msg->data.authenticated.finger.fid != 0) {
                 const uint8_t* hat = reinterpret_cast<const uint8_t *>(&msg->data.authenticated.hat);
                 instance->notifyKeystore(hat, sizeof(msg->data.authenticated.hat));
@@ -67,17 +83,30 @@ void FingerprintDaemonProxy::hal_notify_callback(const fingerprint_msg_t *msg) {
                     msg->data.authenticated.finger.gid);
             break;
         case FINGERPRINT_TEMPLATE_ENROLLING:
+            ALOGD("onEnrollResult(fid=%d, gid=%d, rem=%d)",
+                    msg->data.enroll.finger.fid,
+                    msg->data.enroll.finger.gid,
+                    msg->data.enroll.samples_remaining);
             callback->onEnrollResult(device,
                     msg->data.enroll.finger.fid,
                     msg->data.enroll.finger.gid,
                     msg->data.enroll.samples_remaining);
             break;
         case FINGERPRINT_TEMPLATE_REMOVED:
+            ALOGD("onRemove(fid=%d, gid=%d, rem=%d)",
+                    msg->data.removed.finger.fid,
+                    msg->data.removed.finger.gid,
+                    msg->data.removed.remaining_templates);
             callback->onRemoved(device,
                     msg->data.removed.finger.fid,
-                    msg->data.removed.finger.gid);
+                    msg->data.removed.finger.gid,
+                    msg->data.removed.remaining_templates);
             break;
         case FINGERPRINT_TEMPLATE_ENUMERATING:
+            ALOGD("onEnumerate(fid=%d, gid=%d, rem=%d)",
+                    msg->data.enumerated.finger.fid,
+                    msg->data.enumerated.finger.gid,
+                    msg->data.enumerated.remaining_templates);
             callback->onEnumerate(device,
                     msg->data.enumerated.finger.fid,
                     msg->data.enumerated.finger.gid,
@@ -94,11 +123,13 @@ void FingerprintDaemonProxy::notifyKeystore(const uint8_t *auth_token, const siz
         // TODO: cache service?
         sp < IServiceManager > sm = defaultServiceManager();
         sp < IBinder > binder = sm->getService(String16("android.security.keystore"));
-        sp < IKeystoreService > service = interface_cast < IKeystoreService > (binder);
+        sp<security::IKeystoreService> service = interface_cast<security::IKeystoreService>(binder);
         if (service != NULL) {
-            status_t ret = service->addAuthToken(auth_token, auth_token_length);
-            if (ret != (int)ResponseCode::NO_ERROR) {
-                ALOGE("Falure sending auth token to KeyStore: %d", ret);
+            std::vector<uint8_t> auth_token_vector(auth_token, (auth_token) + auth_token_length);
+            int result = 0;
+            auto binder_result = service->addAuthToken(auth_token_vector, &result);
+            if (!binder_result.isOk() || !keystore::KeyStoreServiceReturnCode(result).isOk()) {
+                ALOGE("Failure sending auth token to KeyStore: %" PRId32, result);
             }
         } else {
             ALOGE("Unable to communicate with KeyStore");
@@ -116,8 +147,9 @@ void FingerprintDaemonProxy::init(const sp<IFingerprintDaemonCallback>& callback
 
 int32_t FingerprintDaemonProxy::enroll(const uint8_t* token, ssize_t tokenSize, int32_t groupId,
         int32_t timeout) {
+    ALOG(LOG_VERBOSE, LOG_TAG, "enroll(gid=%d, timeout=%d)\n", groupId, timeout);
     if (tokenSize != sizeof(hw_auth_token_t) ) {
-        ALOGE("enroll() : invalid token size %zu\n", tokenSize);
+        ALOG(LOG_VERBOSE, LOG_TAG, "enroll() : invalid token size %zu\n", tokenSize);
         return -1;
     }
     const hw_auth_token_t* authToken = reinterpret_cast<const hw_auth_token_t*>(token);
@@ -133,22 +165,27 @@ int32_t FingerprintDaemonProxy::postEnroll() {
 }
 
 int32_t FingerprintDaemonProxy::stopEnrollment() {
+    ALOG(LOG_VERBOSE, LOG_TAG, "stopEnrollment()\n");
     return mDevice->cancel(mDevice);
 }
 
 int32_t FingerprintDaemonProxy::authenticate(uint64_t sessionId, uint32_t groupId) {
+    ALOG(LOG_VERBOSE, LOG_TAG, "authenticate(sid=%" PRId64 ", gid=%d)\n", sessionId, groupId);
     return mDevice->authenticate(mDevice, sessionId, groupId);
 }
 
 int32_t FingerprintDaemonProxy::stopAuthentication() {
+    ALOG(LOG_VERBOSE, LOG_TAG, "stopAuthentication()\n");
     return mDevice->cancel(mDevice);
 }
 
 int32_t FingerprintDaemonProxy::remove(int32_t fingerId, int32_t groupId) {
+    ALOG(LOG_VERBOSE, LOG_TAG, "remove(fid=%d, gid=%d)\n", fingerId, groupId);
     return mDevice->remove(mDevice, groupId, fingerId);
 }
 
 int32_t FingerprintDaemonProxy::enumerate() {
+    ALOG(LOG_VERBOSE, LOG_TAG, "enumerate()\n");
     return mDevice->enumerate(mDevice);
 }
 
@@ -171,78 +208,90 @@ int32_t FingerprintDaemonProxy::setActiveGroup(int32_t groupId, const uint8_t* p
     char path_name[PATH_MAX];
     memcpy(path_name, path, pathlen);
     path_name[pathlen] = '\0';
+    ALOG(LOG_VERBOSE, LOG_TAG, "setActiveGroup(%d, %s, %zu)", groupId, path_name, pathlen);
     return mDevice->set_active_group(mDevice, groupId, path_name);
 }
 
-bool FingerprintDaemonProxy::openGoodixHal(hw_device_t **device) {
-    int err;
-    const hw_module_t *hw_module = NULL;
-    ALOGD("Opening goodix fingerprint hal library...");
-    if (0 != (err = hw_get_module("fingerprint", &hw_module))) {
-        ALOGE("Can't open goodix fingerprint HW Module, error: %d", err);
-        return false;
-    }
-    if (NULL == hw_module) {
-        ALOGE("No valid fingerprint module");
-        return false;
-    }
-
-    mModule = reinterpret_cast<const fingerprint_module_t*>(hw_module);
-
-    if (mModule->common.methods->open == NULL) {
-        ALOGE("No valid open method");
-        return false;
-    }
-
-    if (0 != (err = mModule->common.methods->open(hw_module, nullptr, device))) {
-        ALOGE("Can't open goodix fingerprint methods, error: %d", err);
-        return false;
-    }
-
-    return true;
-}
-
-bool FingerprintDaemonProxy::openBetterlifeHal(hw_device_t **device) {
-    int err;
-    const hw_module_t *hw_module = NULL;
-    ALOGD("Opening betterlife fingerprint hal library...");
-    if (0 != (err = hw_get_module("blestech.fingerprint", &hw_module))) {
-        ALOGE("Can't open betterlife fingerprint HW Module, error: %d", err);
-        return false;
-    }
-    if (NULL == hw_module) {
-        ALOGE("No valid fingerprint module");
-        return false;
-    }
-
-    mModule = reinterpret_cast<const fingerprint_module_t*>(hw_module);
-
-    if (mModule->common.methods->open == NULL) {
-        ALOGE("No valid open method");
-        return false;
-    }
-
-    if (0 != (err = mModule->common.methods->open(hw_module, NULL, device))) {
-        ALOGE("Can't open betterlife fingerprint methods, error: %d", err);
-        return false;
-    }
-
-    return true;
-}
-
 int64_t FingerprintDaemonProxy::openHal() {
+    ALOG(LOG_VERBOSE, LOG_TAG, "nativeOpenHal()\n");
     int err;
-    hw_device_t *device = NULL;
+    const hw_module_t *hw_module = NULL;
+#ifdef SMARTISAN_HACK
+hw_device_t *device = NULL;
+const char *fingerprint_id;
+const char *id;
 
-    if (!FingerprintDaemonProxy::openGoodixHal(&device) &&
-        !FingerprintDaemonProxy::openBetterlifeHal(&device)) {
-        ALOGE("No working fingerprint hal");
+ALOGD("Sleep 10s to wait fingerprint sensor gets ready...");
+sleep(10);
+
+for (int i = 0; i < FP_VENDORS; i++) {
+    id = aFingerprint[i];
+    ALOGD("open %s  hal start times=%d", id, i);
+    sleep(1);
+
+    if (0 != (err = hw_get_module(id, &hw_module))) {
+#else
+    if (0 != (err = hw_get_module(FINGERPRINT_HARDWARE_MODULE_ID, &hw_module))) {
+#endif
+        ALOGE("Can't open fingerprint HW Module, error: %d", err);
+#ifdef SMARTISAN_HACK
+        continue;
+#else
         return 0;
+#endif
     }
+    if (NULL == hw_module) {
+        ALOGE("No valid fingerprint module");
+#ifdef SMARTISAN_HACK
+        continue;
+#else
+        return 0;
+#endif
+    }
+
+    mModule = reinterpret_cast<const fingerprint_module_t*>(hw_module);
+
+    if (mModule->common.methods->open == NULL) {
+        ALOGE("No valid open method");
+#ifdef SMARTISAN_HACK
+        continue;
+#else
+        return 0;
+#endif
+    }
+
+#ifndef SMARTISAN_HACK
+    hw_device_t *device = NULL;
+#endif
+
+    if (0 != (err = mModule->common.methods->open(hw_module, NULL, &device))) {
+        ALOGE("Can't open fingerprint methods, error: %d", err);
+#ifdef SMARTISAN_HACK
+        continue;
+#else
+        return 0;
+#endif
+    }
+
+#ifdef SMARTISAN_HACK
+    fingerprint_id = id;
+    break;
+}
+
+if (strcmp(fingerprint_id, "blestech.fingerprint") == 0) {
+    err = property_set("persist.fingerprint", "betterlife");
+    ALOGE("property_set betterlife err:%d", err);
+    mkdir("/data/fpvendor/helitai_bf3582", 0777);
+} else if (strcmp(fingerprint_id, "fingerprint") == 0) {
+    property_set("persist.fingerprint", "goodix");
+} else {
+    ALOGE("Invalid fp id!");
+}
+#endif
 
     if (kVersion != device->version) {
         ALOGE("Wrong fp version. Expected %d, got %d", kVersion, device->version);
-        // return 0;
+        // return 0; // FIXME
     }
 
     mDevice = reinterpret_cast<fingerprint_device_t*>(device);
@@ -257,11 +306,15 @@ int64_t FingerprintDaemonProxy::openHal() {
         ALOGE("NOTIFY not set properly: %p != %p", mDevice->notify, hal_notify_callback);
     }
 
-    ALOGE("fingerprint HAL successfully initialized");
+    ALOG(LOG_VERBOSE, LOG_TAG, "fingerprint HAL successfully initialized");
+#ifdef SMARTISAN_HACK
+    property_set("fingerprint.state", "ok");
+#endif
     return reinterpret_cast<int64_t>(mDevice); // This is just a handle
 }
 
 int32_t FingerprintDaemonProxy::closeHal() {
+    ALOG(LOG_VERBOSE, LOG_TAG, "nativeCloseHal()\n");
     if (mDevice == NULL) {
         ALOGE("No valid device");
         return -ENOSYS;
@@ -276,6 +329,7 @@ int32_t FingerprintDaemonProxy::closeHal() {
 }
 
 void FingerprintDaemonProxy::binderDied(const wp<IBinder>& who) {
+    ALOGD("binder died");
     int err;
     if (0 != (err = closeHal())) {
         ALOGE("Can't close fingerprint device, error: %d", err);

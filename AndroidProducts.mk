@@ -1,6 +1,5 @@
-#!/bin/bash
 #
-# Copyright (C) 2018 The MoKee Open Source Project
+# Copyright (C) 2018-2019 The MoKee Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,12 +14,5 @@
 # limitations under the License.
 #
 
-set -e
-
-export DEVICE=oscar
-export DEVICE_COMMON=msm8953-common
-export VENDOR=smartisan
-
-export DEVICE_BRINGUP_YEAR=2018
-
-./../../$VENDOR/$DEVICE_COMMON/setup-makefiles.sh $@
+PRODUCT_MAKEFILES := \
+    $(LOCAL_DIR)/aosp_oscar.mk

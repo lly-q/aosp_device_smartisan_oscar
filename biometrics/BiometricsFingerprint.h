@@ -62,9 +62,6 @@ public:
     Return<RequestStatus> authenticate(uint64_t operationId, uint32_t gid) override;
 
 private:
-    static bool openGoodixHal(hw_device_t **device);
-    static bool openBetterlifeHal(hw_device_t **device);
-    static fingerprint_device_t* openHal();
     static void notify(const fingerprint_msg_t *msg); /* Static callback for legacy HAL implementation */
     static Return<RequestStatus> ErrorFilter(int32_t error);
     static FingerprintError VendorErrorFilter(int32_t error, int32_t* vendorCode);
